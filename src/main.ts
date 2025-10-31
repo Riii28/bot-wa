@@ -1,0 +1,70 @@
+import dotenv from "dotenv";
+import { Auth } from "./core/auth";
+import { Bot } from "./core/bot";
+import { BotHandler } from "./handlers/bot-handler";
+import { fetchLatestBaileysVersion } from "baileys";
+import { logger } from "./utils/logger";
+import { WelcomeHandler } from "./message/conversations/welcome";
+import { MenuHandler } from "./message/features/menu";
+import { PingHandler } from "./message/features/ping";
+import { AboutHandler } from "./message/features/about";
+import { HelpHandler } from "./message/features/help";
+import { IQHandler } from "./message/features/check-iq";
+import { ScheduleHandler } from "./message/features/schedule";
+
+dotenv.config();
+
+const main = async () => {
+   const { DB_HOST, DB_USER, DB_PASSWORD, DB_DATABASE } = process.env;
+
+   if (!DB_HOST || !DB_USER || !DB_PASSWORD || !DB_DATABASE) {
+      throw new Error("Database configuration not found");
+   }
+
+   try {
+      const version = await fetchLatestBaileysVersion();
+
+      const auth = new Auth({
+         host: DB_HOST,
+         user: DB_USER,
+         password: DB_PASSWORD,
+         database: DB_DATABASE,
+      });
+
+      await auth.init();
+
+      const bot = new Bot({
+         authentication: auth,
+         version,
+      });
+
+      const handler = new BotHandler();
+
+      handler.addMessage(new WelcomeHandler());
+      handler.addMessage(new MenuHandler());
+      handler.addMessage(new PingHandler());
+      handler.addMessage(new AboutHandler());
+      handler.addMessage(new HelpHandler());
+      handler.addMessage(new IQHandler());
+      handler.addMessage(new ScheduleHandler());
+
+      bot.setHandler(handler);
+      bot.start();
+
+      process.on("SIGINT", async () => {
+         await bot.stop();
+         process.exit(0);
+      });
+
+      process.on("SIGTERM", async () => {
+         await bot.stop();
+         process.exit(0);
+      });
+   } catch (err) {
+      if (err instanceof Error) {
+         logger.error(err.message);
+      }
+   }
+};
+
+main();
