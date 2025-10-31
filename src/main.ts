@@ -24,17 +24,11 @@ const main = async () => {
    try {
       const version = await fetchLatestBaileysVersion();
 
-      const auth = new Auth({
-         host: DB_HOST,
-         user: DB_USER,
-         password: DB_PASSWORD,
-         database: DB_DATABASE,
-      });
-
-      await auth.init();
+      const auth = new Auth({ tableName: "auth" });
+      const { state, saveCreds } = await auth.useAuthState();
 
       const bot = new Bot({
-         authentication: auth,
+         authentication: { creds: state.creds, keys: state.keys, saveCreds },
          version,
       });
 

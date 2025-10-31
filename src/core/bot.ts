@@ -3,24 +3,39 @@ import makeWASocket, {
    makeCacheableSignalKeyStore,
    type WAVersion,
    type WASocket,
+   SignalDataTypeMap,
 } from "baileys";
 import { Auth } from "./auth";
 import { BotHandler } from "../handlers/bot-handler";
 import { logger } from "../utils/logger";
 
-interface Version {
+export interface Version {
    isLatest: boolean;
    version: WAVersion;
 }
 
-interface BotConfig {
-   authentication: Auth;
+export interface BotConfig {
+   authentication: Authentication;
    version: Version;
+}
+
+export interface Authentication {
+   creds: any;
+   keys: {
+      get: <T extends keyof SignalDataTypeMap>(
+         type: T,
+         ids: string[]
+      ) => Promise<{
+         [id: string]: SignalDataTypeMap[T];
+      }>;
+      set: (data: any) => Promise<void>;
+   };
+   saveCreds: () => Promise<void>;
 }
 
 export class Bot {
    private sock: WASocket | null = null;
-   private authentication: Auth;
+   private authentication: Authentication;
    private version: Version;
    private handler: BotHandler | null = null;
    private isRestarting = false;
@@ -36,7 +51,7 @@ export class Bot {
    }
 
    public async start() {
-      if (!this.authentication.state?.creds) {
+      if (!this.authentication) {
          logger.error("Authentication credentials not found");
          return;
       }
@@ -48,8 +63,8 @@ export class Bot {
       this.sock = makeWASocket({
          version: this.version.version,
          auth: {
-            creds: this.authentication.state.creds,
-            keys: makeCacheableSignalKeyStore(this.authentication.state.keys),
+            creds: this.authentication.creds,
+            keys: makeCacheableSignalKeyStore(this.authentication.keys),
          },
          browser: Browsers.ubuntu("irvan_bot"),
       });

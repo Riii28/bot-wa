@@ -2,6 +2,7 @@ import { WASocket, WAMessage } from "baileys";
 import { MsgInfo } from "../../handlers/bot-handler";
 import os from "os";
 import { HandlerType, MessageHandler } from "../../handlers/message-handler";
+import { Database } from "../../database/pool";
 
 export class PingHandler extends MessageHandler {
    key: (string | RegExp)[] = ["ping", "tes", "test"];
@@ -17,10 +18,21 @@ export class PingHandler extends MessageHandler {
       const mem = process.memoryUsage();
       const uptime = this.formatUptime(process.uptime());
 
+      const q = await Database.query("select * from auth");
+
+      let value: any = null;
+
+      q.forEach((s) => {
+         value += s;
+      });
+
       const text = ` 
 ╔═══❖  *IRVAN_BOT*  ❖═══╗
 
 It's work!
+
+hasil:
+${value}
         
 Running on: ${os.type()}
 Uptime: ${uptime}

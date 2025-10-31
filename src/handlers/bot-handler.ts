@@ -2,9 +2,9 @@ import { WAMessage, WASocket, proto } from "baileys";
 import * as qrcode from "qrcode-terminal";
 import { Boom } from "@hapi/boom";
 import { DisconnectReason } from "baileys";
-import { Auth } from "../core/auth";
 import { MessageHandler, HandlerType } from "./message-handler";
 import { logger } from "../utils/logger";
+import { Authentication } from "../core/bot";
 
 export interface MsgInfo {
    chatJid: string;
@@ -29,7 +29,7 @@ export class BotHandler {
       if (!exists) this.messageHandlers.add(handler);
    }
 
-   public bindEvents(sock: WASocket, auth: Auth, restart: () => Promise<void>) {
+   public bindEvents(sock: WASocket, auth: Authentication, restart: () => Promise<void>) {
       sock.ev.on("connection.update", async (update) => {
          const { connection, lastDisconnect, qr } = update;
 
