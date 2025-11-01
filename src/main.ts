@@ -40,11 +40,13 @@ const main = async () => {
       bot.start();
 
       process.on("SIGINT", async () => {
+         logger.info("Bot is shutting down gracefully. Bye!");
          await bot.stop();
          process.exit(0);
       });
 
       process.on("SIGTERM", async () => {
+         logger.info("Bot is shutting down gracefully. Bye!");
          await bot.stop();
          process.exit(0);
       });

@@ -6,6 +6,7 @@ export type HandlerType = "conversation" | "command";
 export abstract class MessageHandler {
    abstract key: (string | RegExp)[];
    abstract type: HandlerType;
+   
    abstract response(
       sock: WASocket,
       msg: WAMessage,

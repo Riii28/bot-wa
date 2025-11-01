@@ -15,7 +15,7 @@ export class WelcomeHandler extends MessageHandler {
 
       await sock.sendMessage(
          info.chatJid,
-         { text: `Halo ${info.senderId}` },
+         { text: `Halo ${info.name}` },
          { quoted: msg }
       );
    }

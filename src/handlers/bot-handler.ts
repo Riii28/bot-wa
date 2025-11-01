@@ -34,8 +34,8 @@ export class BotHandler {
       auth: Authentication,
       restart: () => Promise<void>
    ) {
-      sock.ev.on("connection.update", async (update) => {
-         const { connection, lastDisconnect, qr } = update;
+      sock.ev.on("connection.update", async (conn) => {
+         const { connection, lastDisconnect, qr } = conn;
 
          if (qr) qrcode.generate(qr, { small: true });
          if (connection === "open") logger.info("Connected to WhatsApp");
@@ -89,11 +89,10 @@ export class BotHandler {
       sock.ev.on("call", async (e) => {
          for (const call of e) {
             if (!call.from) continue;
+            logger.info(`incoming call from: ${call.from}`);
             await sock.rejectCall(call.id, call.from);
          }
       });
-
-
    }
 
    private parseSenderInfo(msg: WAMessage, text: string): MsgInfo {

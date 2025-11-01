@@ -68,6 +68,7 @@ export class Bot {
             creds: this.authentication.creds,
             keys: makeCacheableSignalKeyStore(this.authentication.keys),
          },
+         logger,
          browser: Browsers.ubuntu("irvan_bot"),
       });
 
