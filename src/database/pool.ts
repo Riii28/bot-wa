@@ -10,7 +10,7 @@ export class Database {
             port: Number(process.env.DB_PORT) || 3306,
             user: process.env.DB_USER || "root",
             password: process.env.DB_PASSWORD || "",
-            database: process.env.DB_DATABASE || "whatsapp",
+            database: process.env.DB_NAME || "wa_auth_db",
             connectionLimit: 5,
             waitForConnections: true,
             enableKeepAlive: true,

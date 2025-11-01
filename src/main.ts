@@ -15,16 +15,10 @@ import { ScheduleHandler } from "./message/features/schedule";
 dotenv.config();
 
 const main = async () => {
-   const { DB_HOST, DB_USER, DB_PASSWORD, DB_DATABASE } = process.env;
-
-   if (!DB_HOST || !DB_USER || !DB_PASSWORD || !DB_DATABASE) {
-      throw new Error("Database configuration not found");
-   }
-
    try {
       const version = await fetchLatestBaileysVersion();
 
-      const auth = new Auth({ tableName: "auth" });
+      const auth = new Auth({ tableName: "auth", session: "default_session" });
       const { state, saveCreds } = await auth.useAuthState();
 
       const bot = new Bot({

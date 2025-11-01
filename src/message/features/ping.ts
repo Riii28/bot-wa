@@ -8,7 +8,7 @@ export class PingHandler extends MessageHandler {
    key: (string | RegExp)[] = ["ping", "tes", "test"];
    type: HandlerType = "command";
 
-   public async answer(
+   public async response(
       sock: WASocket,
       msg: WAMessage,
       info: MsgInfo
@@ -18,35 +18,25 @@ export class PingHandler extends MessageHandler {
       const mem = process.memoryUsage();
       const uptime = this.formatUptime(process.uptime());
 
-      const q = await Database.query("select * from auth");
-
-      let value: any = null;
-
-      q.forEach((s) => {
-         value += s;
-      });
-
-      const text = ` 
-╔═══❖  *IRVAN_BOT*  ❖═══╗
-
-It's work!
-
-hasil:
-${value}
-        
-Running on: ${os.type()}
-Uptime: ${uptime}
-
-Device Memory: ${this.toGB(os.totalmem())}
-Available Memory: ${this.toGB(os.freemem())}
-
-Memory usage: 
-   • Total Memory (RSS)        : ${this.toMB(mem.rss)}
-   • Allocated Memory (Heap)   : ${this.toMB(mem.heapTotal)}
-   • Used Memory (Heap)        : ${this.toMB(mem.heapUsed)}
-   • External Memory           : ${this.toMB(mem.external)}
-   • Array Buffers             : ${this.toMB(mem.arrayBuffers)}
-`;
+      const text = [
+         "╔═══❖  *IRVAN_BOT*  ❖═══╗",
+         "──────────────────────────",
+         "It's Work!",
+         "",
+         `Running on: ${os.type}`,
+         `Uptime: ${uptime}`,
+         "──────────────────────────",
+         `Device Memory: ${this.toGB(os.totalmem())}`,
+         `Available Memory ${this.toGB(os.freemem())}`,
+         "──────────────────────────",
+         "Memory usage:",
+         `  • Total Memory (RSS)        : ${this.toMB(mem.rss)}`,
+         `  • Allocated Memory (Heap)   : ${this.toMB(mem.heapTotal)}`,
+         `  • Used Memory (Heap)        : ${this.toMB(mem.heapUsed)}`,
+         `  • External Memory           : ${this.toMB(mem.external)}`,
+         `  • Array Buffers             : ${this.toMB(mem.arrayBuffers)}`,
+         "──────────────────────────",
+      ].join("\n");
 
       await sock.sendMessage(info.chatJid, { text });
    }

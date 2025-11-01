@@ -42,7 +42,7 @@ export class IQHandler extends MessageHandler {
    key = ["iq", "cek-iq"];
    type: HandlerType = "command";
 
-   public async answer(
+   public async response(
       sock: WASocket,
       msg: WAMessage,
       info: MsgInfo

@@ -4,8 +4,8 @@ import makeWASocket, {
    type WAVersion,
    type WASocket,
    SignalDataTypeMap,
+   AuthenticationCreds,
 } from "baileys";
-import { Auth } from "./auth";
 import { BotHandler } from "../handlers/bot-handler";
 import { logger } from "../utils/logger";
 
@@ -19,17 +19,19 @@ export interface BotConfig {
    version: Version;
 }
 
+export interface Key {
+   get: <T extends keyof SignalDataTypeMap>(
+      type: T,
+      ids: string[]
+   ) => Promise<{
+      [id: string]: SignalDataTypeMap[T];
+   }>;
+   set: (data: any) => Promise<void>;
+}
+
 export interface Authentication {
-   creds: any;
-   keys: {
-      get: <T extends keyof SignalDataTypeMap>(
-         type: T,
-         ids: string[]
-      ) => Promise<{
-         [id: string]: SignalDataTypeMap[T];
-      }>;
-      set: (data: any) => Promise<void>;
-   };
+   creds: AuthenticationCreds;
+   keys: Key;
    saveCreds: () => Promise<void>;
 }
 

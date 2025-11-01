@@ -1,8 +1,8 @@
-import { WAMessage, WASocket, proto } from "baileys";
+import { WAMessage, WASocket } from "baileys";
 import * as qrcode from "qrcode-terminal";
 import { Boom } from "@hapi/boom";
 import { DisconnectReason } from "baileys";
-import { MessageHandler, HandlerType } from "./message-handler";
+import { MessageHandler } from "./message-handler";
 import { logger } from "../utils/logger";
 import { Authentication } from "../core/bot";
 
@@ -13,7 +13,7 @@ export interface MsgInfo {
    senderId: string | undefined;
    isGroup: boolean;
    name: string | null;
-   fromMe: boolean;
+   fromMe: boolean | null | undefined;
    text: string;
    originalMsg: WAMessage;
 }
@@ -29,7 +29,11 @@ export class BotHandler {
       if (!exists) this.messageHandlers.add(handler);
    }
 
-   public bindEvents(sock: WASocket, auth: Authentication, restart: () => Promise<void>) {
+   public bindEvents(
+      sock: WASocket,
+      auth: Authentication,
+      restart: () => Promise<void>
+   ) {
       sock.ev.on("connection.update", async (update) => {
          const { connection, lastDisconnect, qr } = update;
 
@@ -53,27 +57,32 @@ export class BotHandler {
          if (auth.saveCreds) await auth.saveCreds();
       });
 
-      sock.ev.on("messages.upsert", async (upsert) => {
-         if (upsert.type !== "notify") return;
+      sock.ev.on("messages.upsert", async ({ messages, type }) => {
+         if (type !== "notify") return;
 
-         for (const msg of upsert.messages) {
-            if (msg.key.fromMe) continue;
-            
+         for (const msg of messages) {
+            if (msg.key.fromMe || !msg.message) continue;
+
             const content =
-            msg.message?.conversation ||
-            msg.message?.extendedTextMessage?.text ||
-            msg.message?.imageMessage?.caption;
-            
-            logger.info(`incomming message: ${content}`)
+               msg.message.conversation ||
+               msg.message.extendedTextMessage?.text ||
+               msg.message.imageMessage?.caption ||
+               msg.message.videoMessage?.caption ||
+               msg.message.documentMessage?.caption ||
+               msg.message.buttonsResponseMessage?.selectedButtonId ||
+               msg.message.listResponseMessage?.singleSelectReply
+                  ?.selectedRowId;
+
+            logger.info(`incoming message: ${content}`);
 
             if (!content) continue;
 
             const text = content.trim();
 
-            const info: MsgInfo = this.parseSenderInfo(msg, text);
+            const info = this.parseSenderInfo(msg, text);
 
-            const handler = this.findMessageKey(text);
-            if (handler) await handler.answer(sock, msg, info);
+            const handler = this.findHandler(text);
+            if (handler) await handler.response(sock, msg, info);
          }
       });
 
@@ -84,20 +93,18 @@ export class BotHandler {
          }
       });
 
-      sock.ev.on("group.join-request", async (e) => {
-         
-      })
+
    }
 
    private parseSenderInfo(msg: WAMessage, text: string): MsgInfo {
-      const remoteJid = msg.key?.remoteJid || "";
+      const remoteJid = msg.key.remoteJid || "";
       const isGroup = remoteJid.endsWith("@g.us");
-      const fromMe = !!msg.key?.fromMe;
+      const fromMe = msg.key.fromMe;
       const senderJid = isGroup ? msg.key?.participant ?? "" : remoteJid;
 
       const chatId = remoteJid.split("@")[0];
       const senderId = senderJid.split("@")[0];
-      const name = msg.pushName || null
+      const name = msg.pushName || null;
 
       return {
          chatJid: remoteJid,
@@ -112,7 +119,7 @@ export class BotHandler {
       };
    }
 
-   private findMessageKey(message: string): MessageHandler | undefined {
+   private findHandler(message: string): MessageHandler | undefined {
       if (message.startsWith("!")) {
          const command = message.slice(1).trim().toLowerCase();
          return Array.from(this.messageHandlers).find(

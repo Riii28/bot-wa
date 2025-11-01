@@ -6,7 +6,7 @@ export class HelpHandler extends MessageHandler {
    key: (string | RegExp)[] = ["help", "h"];
    type: HandlerType = "command";
 
-   public async answer(
+   public async response(
       sock: WASocket,
       msg: WAMessage,
       info: MsgInfo

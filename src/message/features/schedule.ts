@@ -2,15 +2,17 @@ import { WASocket, WAMessage } from "baileys";
 import { MsgInfo } from "../../handlers/bot-handler";
 import { HandlerType, MessageHandler } from "../../handlers/message-handler";
 
-interface Schedule {
-   day: number;
-   schedules: {
-      hour: string;
-      subject: string | null;
-   }[];
+interface ScheduleEntry {
+   hour: string;
+   subject: string | null;
 }
 
-const schedule: Schedule[] = [
+interface Schedule {
+   day: number;
+   schedules: ScheduleEntry[];
+}
+
+const SCHEDULES: Schedule[] = [
    {
       day: 1,
       schedules: [
@@ -95,10 +97,10 @@ const schedule: Schedule[] = [
 ];
 
 export class ScheduleHandler extends MessageHandler {
-   key: (string | RegExp)[] = ["jadwal"];
+   key = ["jadwal"];
    type: HandlerType = "command";
 
-   public async answer(
+   public async response(
       sock: WASocket,
       msg: WAMessage,
       info: MsgInfo
@@ -106,67 +108,80 @@ export class ScheduleHandler extends MessageHandler {
       await sock.readMessages([msg.key]);
 
       const today = new Date().getDay();
+      const todayFixed = this.normalizeDay(today);
+      const tomorrowFixed = this.normalizeDay(today + 1);
 
-      let texts: string = "";
+      const todaySchedule = this.findSchedule(todayFixed);
+      const tomorrowSchedule = this.findSchedule(tomorrowFixed);
 
-      const todaySchedule = this.getSchedule(today);
-      const tomorrowSchedule = this.getSchedule(today + 1);
-
-      const text = `
-╔═══❖  *IRVAN_BOT*  ❖═══╗
-
-─────────────────────
-*JADWAL MATA PELAJARAN XII.5*
-
-Hari ini:
-${this.getDayStr(today)}
-
-${this.formatSchedule(todaySchedule) || "Libur"}
-
-Besok:
-${this.getDayStr(today + 1)}
-
-${this.formatSchedule(tomorrowSchedule) || "Libur"}
-`;
+      const text = this.formatResponse(
+         todayFixed,
+         todaySchedule,
+         tomorrowFixed,
+         tomorrowSchedule
+      );
 
       await sock.sendMessage(info.chatJid, { text });
    }
 
-   private getSchedule(day: number) {
-      return schedule.find((s) => s.day === day);
+   private normalizeDay(day: number): number {
+      return day % 7;
    }
 
-   private formatSchedule(schedule: Schedule | undefined) {
-      const s = schedule?.schedules.map(
-         (s) =>
-            `Jam ke: ${s.hour} - Mapel: ${
-               s.subject === null ? "Istirahat" : s.subject
-            }\n`
-      );
-
-      return s?.join(" ").split(", ");
+   private findSchedule(day: number): Schedule | undefined {
+      return SCHEDULES.find((s) => s.day === day);
    }
 
-   private getDayStr(day: number | undefined): string {
-      if (!day) return "Libur";
+   private formatSchedule(schedule?: Schedule): string {
+      if (!schedule || schedule.schedules.length === 0)
+         return "Tidak ada pelajaran (libur)";
 
-      switch (day) {
-         case 0:
-            return "Minggu";
-         case 1:
-            return "Senin";
-         case 2:
-            return "Selasa";
-         case 3:
-            return "Rabu";
-         case 4:
-            return "Kamis";
-         case 5:
-            return "Jum'at";
-         case 6:
-            return "Sabtu";
-         default:
-            throw new Error(`day ${day} not found`);
-      }
+      return schedule.schedules
+         .map((s, i) => {
+            const subject = s.subject ?? "Istirahat";
+            return `${i + 1}. ${s.hour} → ${subject}`;
+         })
+         .join("\n");
+   }
+
+   private getDayString(day: number): string {
+      const days = [
+         "Minggu",
+         "Senin",
+         "Selasa",
+         "Rabu",
+         "Kamis",
+         "Jumat",
+         "Sabtu",
+      ];
+      return days[day] ?? "Tidak diketahui";
+   }
+
+   private formatResponse(
+      today: number,
+      todaySchedule: Schedule | undefined,
+      tomorrow: number,
+      tomorrowSchedule: Schedule | undefined
+   ): string {
+      const todayStr = this.getDayString(today);
+      const tomorrowStr = this.getDayString(tomorrow);
+
+      return [
+         "╔═══❖  *IRVAN_BOT*  ❖═══╗",
+         "",
+         "📘 *JADWAL MATA PELAJARAN XII.5*",
+         "─────────────────────────────",
+         "",
+         `🗓 *Hari ini* — ${todayStr}`,
+         this.formatSchedule(todaySchedule),
+         "",
+         `🗓 *Besok* — ${tomorrowStr}`,
+         this.formatSchedule(tomorrowSchedule),
+         "",
+         "─────────────────────────────",
+         "_Gunakan perintah !jadwal untuk melihat kembali._",
+      ].join("\n");
    }
 }
+
+
