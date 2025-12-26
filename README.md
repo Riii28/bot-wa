@@ -69,7 +69,7 @@ Untuk menambahkan pesan otomatis baru, ikuti langkah berikut:
 3. Buat class baru dengan mewarisi `MessageHandler`:
 
    ```ts
-   class Something extends MessageHandler {}
+   class SomethingHandler extends MessageHandler {}
    ```
 
 4. Class handler wajib memiliki properti dan method berikut:
@@ -93,6 +93,18 @@ Untuk menambahkan pesan otomatis baru, ikuti langkah berikut:
    ### Response
 
    Method yang berisi logika untuk memproses pesan dan mengirim balasan.
+
+   ```ts
+   async response(sock: WASocket, msg: WAMessage, info: MsgInfo): Promise<void>
+   ```
+
+5. Daftarkan `SomethingHandler` di `src/main.ts`
+
+   ```ts
+   const handler = new BotHandler();S
+
+   handler.addMessage(new SomethingHandler());
+   ```
 
 ---
 
