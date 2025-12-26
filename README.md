@@ -101,7 +101,7 @@ Untuk menambahkan pesan otomatis baru, ikuti langkah berikut:
 5. Daftarkan `SomethingHandler` di `src/main.ts`
 
    ```ts
-   const handler = new BotHandler();S
+   const handler = new BotHandler();
 
    handler.addMessage(new SomethingHandler());
    ```
