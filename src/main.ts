@@ -21,12 +21,11 @@ const main = async () => {
 
       logger.info("Loading authentication state...");
       const auth = new Auth({ tableName: "auth", session: "default_session" });
-      const { state, saveCreds } = await auth.useAuthState();
       logger.info("Auth state loaded");
 
       const bot = new Bot({
-         authentication: { creds: state.creds, keys: state.keys, saveCreds },
          version,
+         auth,
       });
 
       const handler = new BotHandler();

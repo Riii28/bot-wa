@@ -1,10 +1,10 @@
-import { WAMessage, WASocket } from "baileys";
-import * as qrcode from "qrcode-terminal";
 import { Boom } from "@hapi/boom";
-import { DisconnectReason } from "baileys";
+import { DisconnectReason, WAMessage, WASocket } from "baileys";
+import * as qrcode from "qrcode-terminal";
+
+import { Authentication } from "../core/bot";
 import { MessageHandler } from "./message-handler";
 import { logger } from "../utils/logger";
-import { Authentication } from "../core/bot";
 
 export interface MsgInfo {
    chatJid: string;
@@ -19,130 +19,182 @@ export interface MsgInfo {
 }
 
 export class BotHandler {
-   private messageHandlers: Set<MessageHandler> = new Set();
+   private readonly messageHandlers = new Set<MessageHandler>();
 
    public addMessage(handler: MessageHandler) {
-      const exists = Array.from(this.messageHandlers).some(
+      const exists = [...this.messageHandlers].some(
          (h) =>
             h.type === handler.type &&
             h.key.join(",") === handler.key.join(","),
       );
-      if (!exists) {
-         this.messageHandlers.add(handler);
-         logger.info(`Add ${handler.key.join(', ')} ${MessageHandler.name} successfully`);
-      }
+
+      if (exists) return;
+
+      this.messageHandlers.add(handler);
+
+      logger.info(
+         `Added ${handler.key.join(", ")} ${MessageHandler.name} successfully`,
+      );
    }
 
    public bindEvents(
       sock: WASocket,
       auth: Authentication,
       restart: () => Promise<void>,
+      onLogout: () => Promise<void>,
    ) {
-      sock.ev.on("connection.update", async (conn) => {
-         const { connection, lastDisconnect, qr } = conn;
+      sock.ev.on("connection.update", (update) =>
+         this.handleConnectionUpdate(update, restart, onLogout),
+      );
 
-         if (qr) qrcode.generate(qr, { small: true });
-         if (connection === "open") logger.info("Connected to WhatsApp");
+      sock.ev.on("creds.update", () => auth.saveCreds());
 
-         if (connection === "close" && lastDisconnect) {
-            const error = lastDisconnect.error;
-            if (error instanceof Boom) {
-               const code = error.output.statusCode;
-               if (code === DisconnectReason.loggedOut) {
-                  logger.error("Session logged out");
-                  return;
-               }
-               await restart();
-            }
+      sock.ev.on("messages.upsert", ({ messages, type }) =>
+         this.handleMessages(sock, messages, type),
+      );
+
+      sock.ev.on("call", (calls) => this.handleCalls(sock, calls));
+   }
+
+   private async handleConnectionUpdate(
+      update: any,
+      restart: () => Promise<void>,
+      onLogout: () => Promise<void>,
+   ) {
+      const { connection, lastDisconnect, qr } = update;
+
+      if (qr) {
+         logger.info("New QR code generated");
+         qrcode.generate(qr, { small: true });
+      }
+
+      if (connection === "open") {
+         logger.info("Connected to WhatsApp");
+         return;
+      }
+
+      if (connection !== "close" || !lastDisconnect) {
+         return;
+      }
+
+      const error = lastDisconnect.error;
+
+      if (!(error instanceof Boom)) {
+         logger.warn("Connection closed with unknown error");
+         await restart();
+         return;
+      }
+
+      const code = error.output.statusCode;
+
+      if (code === DisconnectReason.loggedOut) {
+         logger.error("Session logged out");
+
+         await onLogout();
+
+         return;
+      }
+
+      logger.warn(`Connection closed (code: ${code})`);
+      logger.info("Attempting to reconnect...");
+
+      await restart();
+   }
+
+   private async handleMessages(
+      sock: WASocket,
+      messages: WAMessage[],
+      type: string,
+   ) {
+      if (type !== "notify") return;
+
+      for (const msg of messages) {
+         if (msg.key.fromMe || !msg.message) {
+            continue;
          }
-      });
 
-      sock.ev.on("creds.update", async () => {
-         if (auth.saveCreds) await auth.saveCreds();
-      });
+         const content = this.extractMessageContent(msg);
 
-      sock.ev.on("messages.upsert", async ({ messages, type }) => {
-         if (type !== "notify") return;
+         if (!content) continue;
 
-         for (const msg of messages) {
-            if (msg.key.fromMe || !msg.message) continue;
+         logger.info(`Incoming message: ${content}`);
 
-            const content =
-               msg.message.conversation ||
-               msg.message.extendedTextMessage?.text ||
-               msg.message.imageMessage?.caption ||
-               msg.message.videoMessage?.caption ||
-               msg.message.documentMessage?.caption ||
-               msg.message.buttonsResponseMessage?.selectedButtonId ||
-               msg.message.listResponseMessage?.singleSelectReply
-                  ?.selectedRowId;
+         const text = content.trim();
+         const info = this.parseSenderInfo(msg, text);
 
-            logger.info(`incoming message: ${content}`);
+         const handler = this.findHandler(text);
 
-            if (!content) continue;
-
-            const text = content.trim();
-
-            const info = this.parseSenderInfo(msg, text);
-
-            const handler = this.findHandler(text);
-            if (handler) await handler.response(sock, msg, info);
+         if (handler) {
+            await handler.response(sock, msg, info);
          }
-      });
+      }
+   }
 
-      sock.ev.on("call", async (e) => {
-         for (const call of e) {
-            if (!call.from) continue;
-            logger.info(`incoming call from: ${call.from}`);
-            await sock.rejectCall(call.id, call.from);
-         }
-      });
+   private async handleCalls(sock: WASocket, calls: any[]) {
+      for (const call of calls) {
+         if (!call.from) continue;
+
+         logger.info(`Incoming call from: ${call.from}`);
+
+         await sock.rejectCall(call.id, call.from);
+      }
+   }
+
+   private extractMessageContent(msg: WAMessage) {
+      return (
+         msg.message?.conversation ||
+         msg.message?.extendedTextMessage?.text ||
+         msg.message?.imageMessage?.caption ||
+         msg.message?.videoMessage?.caption ||
+         msg.message?.documentMessage?.caption ||
+         msg.message?.buttonsResponseMessage?.selectedButtonId ||
+         msg.message?.listResponseMessage?.singleSelectReply?.selectedRowId
+      );
    }
 
    private parseSenderInfo(msg: WAMessage, text: string): MsgInfo {
-      const remoteJid = msg.key.remoteJid || "";
+      const remoteJid = msg.key.remoteJid ?? "";
       const isGroup = remoteJid.endsWith("@g.us");
-      const fromMe = msg.key.fromMe;
-      const senderJid = isGroup ? (msg.key?.participant ?? "") : remoteJid;
 
-      const chatId = remoteJid.split("@")[0];
-      const senderId = senderJid.split("@")[0];
-      const name = msg.pushName || null;
+      const senderJid = isGroup ? (msg.key.participant ?? "") : remoteJid;
 
       return {
          chatJid: remoteJid,
-         chatId,
+         chatId: remoteJid.split("@")[0],
          senderJid,
-         senderId,
+         senderId: senderJid.split("@")[0],
          isGroup,
-         name,
-         fromMe,
+         name: msg.pushName ?? null,
+         fromMe: msg.key.fromMe,
          text,
          originalMsg: msg,
       };
    }
 
    private findHandler(message: string): MessageHandler | undefined {
+      const handlers = [...this.messageHandlers];
+
       if (message.startsWith("!")) {
          const command = message.slice(1).trim().toLowerCase();
-         return Array.from(this.messageHandlers).find(
-            (m) =>
-               m.type === "command" &&
-               m.key.some((k) =>
-                  k instanceof RegExp
-                     ? k.test(command)
-                     : k.toLowerCase() === command,
+
+         return handlers.find(
+            (handler) =>
+               handler.type === "command" &&
+               handler.key.some((key) =>
+                  key instanceof RegExp
+                     ? key.test(command)
+                     : key.toLowerCase() === command,
                ),
          );
       }
 
-      return Array.from(this.messageHandlers).find(
-         (m) =>
-            m.type === "conversation" &&
-            m.key.some((k) =>
-               k instanceof RegExp
-                  ? k.test(message)
-                  : message.toLowerCase().includes(k.toLowerCase()),
+      return handlers.find(
+         (handler) =>
+            handler.type === "conversation" &&
+            handler.key.some((key) =>
+               key instanceof RegExp
+                  ? key.test(message)
+                  : message.toLowerCase().includes(key.toLowerCase()),
             ),
       );
    }
