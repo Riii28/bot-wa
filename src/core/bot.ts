@@ -22,7 +22,7 @@ export interface BotConfig {
 export interface Key {
    get: <T extends keyof SignalDataTypeMap>(
       type: T,
-      ids: string[]
+      ids: string[],
    ) => Promise<{
       [id: string]: SignalDataTypeMap[T];
    }>;
@@ -100,7 +100,7 @@ export class Bot {
       this.isListening = true;
 
       this.handler.bindEvents(this.sock, this.authentication, () =>
-         this.restart()
+         this.restart(),
       );
    }
 

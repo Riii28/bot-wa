@@ -24,15 +24,19 @@ export class BotHandler {
    public addMessage(handler: MessageHandler) {
       const exists = Array.from(this.messageHandlers).some(
          (h) =>
-            h.type === handler.type && h.key.join(",") === handler.key.join(",")
+            h.type === handler.type &&
+            h.key.join(",") === handler.key.join(","),
       );
-      if (!exists) this.messageHandlers.add(handler);
+      if (!exists) {
+         this.messageHandlers.add(handler);
+         logger.info(`Add ${handler.key.join(', ')} ${MessageHandler.name} successfully`);
+      }
    }
 
    public bindEvents(
       sock: WASocket,
       auth: Authentication,
-      restart: () => Promise<void>
+      restart: () => Promise<void>,
    ) {
       sock.ev.on("connection.update", async (conn) => {
          const { connection, lastDisconnect, qr } = conn;
@@ -99,7 +103,7 @@ export class BotHandler {
       const remoteJid = msg.key.remoteJid || "";
       const isGroup = remoteJid.endsWith("@g.us");
       const fromMe = msg.key.fromMe;
-      const senderJid = isGroup ? msg.key?.participant ?? "" : remoteJid;
+      const senderJid = isGroup ? (msg.key?.participant ?? "") : remoteJid;
 
       const chatId = remoteJid.split("@")[0];
       const senderId = senderJid.split("@")[0];
@@ -127,8 +131,8 @@ export class BotHandler {
                m.key.some((k) =>
                   k instanceof RegExp
                      ? k.test(command)
-                     : k.toLowerCase() === command
-               )
+                     : k.toLowerCase() === command,
+               ),
          );
       }
 
@@ -138,8 +142,8 @@ export class BotHandler {
             m.key.some((k) =>
                k instanceof RegExp
                   ? k.test(message)
-                  : message.toLowerCase().includes(k.toLowerCase())
-            )
+                  : message.toLowerCase().includes(k.toLowerCase()),
+            ),
       );
    }
 }

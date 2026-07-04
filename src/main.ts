@@ -4,22 +4,25 @@ import { Bot } from "./core/bot";
 import { BotHandler } from "./handlers/bot-handler";
 import { fetchLatestBaileysVersion } from "baileys";
 import { logger } from "./utils/logger";
-import { WelcomeHandler } from "./message/conversations/welcome";
-import { MenuHandler } from "./message/features/menu";
-import { PingHandler } from "./message/features/ping";
-import { AboutHandler } from "./message/features/about";
-import { HelpHandler } from "./message/features/help";
-import { IQHandler } from "./message/features/check-iq";
-import { ScheduleHandler } from "./message/features/schedule";
+import { registry } from "./message/registry";
+import { MessageHandler } from "./handlers/message-handler";
 
-dotenv.config();
+dotenv.config({ quiet: true });
 
 const main = async () => {
    try {
-      const version = await fetchLatestBaileysVersion();
+      console.clear();
+      logger.info("Starting WhatsApp Bot...");
 
+      const version = await fetchLatestBaileysVersion();
+      logger.info(
+         `Baileys version: ${version.version.join(".")} ${version.isLatest ? "(latest)" : ""}`,
+      );
+
+      logger.info("Loading authentication state...");
       const auth = new Auth({ tableName: "auth", session: "default_session" });
       const { state, saveCreds } = await auth.useAuthState();
+      logger.info("Auth state loaded");
 
       const bot = new Bot({
          authentication: { creds: state.creds, keys: state.keys, saveCreds },
@@ -28,15 +31,12 @@ const main = async () => {
 
       const handler = new BotHandler();
 
-      handler.addMessage(new WelcomeHandler());
-      handler.addMessage(new MenuHandler());
-      handler.addMessage(new PingHandler());
-      handler.addMessage(new AboutHandler());
-      handler.addMessage(new HelpHandler());
-      handler.addMessage(new IQHandler());
-      handler.addMessage(new ScheduleHandler());
-
+      logger.info(`Loading ${MessageHandler.name}...`);
+      registry(handler);
       bot.setHandler(handler);
+      logger.info("Message handler registered");
+
+      logger.info("Connecting to WhatsApp...");
       bot.start();
 
       process.on("SIGINT", async () => {
